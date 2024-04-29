@@ -266,8 +266,8 @@ def _filter_breaking_changes(iterator, max_version=None):
                 logger.warning('Invalid version from `%s`: %s', item.command, item.target_version)
 
 
+# pylint: disable=unnecessary-lambda-assignment
 def _group_breaking_change_items(iterator, group_by_version=False):
-    # pylint: disable=unnecessary-lambda-assignment
     if group_by_version:
         version_value = lambda: []
         command_value = lambda: defaultdict(version_value)
