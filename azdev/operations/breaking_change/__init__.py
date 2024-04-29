@@ -269,12 +269,14 @@ def _filter_breaking_changes(iterator, max_version=None):
 # pylint: disable=unnecessary-lambda-assignment
 def _group_breaking_change_items(iterator, group_by_version=False):
     if group_by_version:
-        version_value = lambda: []
-        command_value = lambda: defaultdict(version_value)
+        upcoming_breaking_changes = defaultdict(    # module to command
+            lambda: defaultdict(    # command to version
+                lambda: defaultdict(    # version to list of breaking changes
+                    lambda: [])))
     else:
-        command_value = lambda: []
-    module_value = lambda: defaultdict(command_value)
-    upcoming_breaking_changes = defaultdict(module_value)
+        upcoming_breaking_changes = defaultdict(    # module to command
+            lambda: defaultdict(    # command to list of breaking changes
+                lambda: []))
     for item in iterator:
         version = item.target_version if item.target_version else 'Unspecific'
         if group_by_version:
