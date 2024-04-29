@@ -252,8 +252,8 @@ def _filter_breaking_changes(iterator, max_version=None):
     try:
         parsed_max_version = packaging.version.parse(max_version)
     except packaging.version.InvalidVersion:
-        logger.warning(f'Invalid target version: %s; '
-                       f'Will present all upcoming breaking changes as alternative.', max_version)
+        logger.warning('Invalid target version: %s; '
+                       'Will present all upcoming breaking changes as alternative.', max_version)
         yield from iterator
         return
     for item in iterator:
@@ -263,7 +263,7 @@ def _filter_breaking_changes(iterator, max_version=None):
                 if target_version <= parsed_max_version:
                     yield item
             except packaging.version.InvalidVersion:
-                logger.warning(f'Invalid version from `%s`: %s', item.command, item.target_version)
+                logger.warning('Invalid version from `%s`: %s', item.command, item.target_version)
 
 
 def _group_breaking_change_items(iterator, group_by_version=False):
