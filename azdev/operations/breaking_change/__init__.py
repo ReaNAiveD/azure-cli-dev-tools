@@ -80,7 +80,7 @@ def _handle_custom_breaking_changes(module, command):
     from azure.cli.core.breaking_change import upcoming_breaking_changes
     yield from _handle_custom_breaking_change(module, command, upcoming_breaking_changes.get(command))
     for key in upcoming_breaking_changes:
-        if key.startswith(command + ':'):
+        if key.startswith(command + '.'):
             yield from _handle_custom_breaking_change(module, command, upcoming_breaking_changes[key])
 
 
