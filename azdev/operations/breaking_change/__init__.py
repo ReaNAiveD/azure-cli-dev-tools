@@ -3,11 +3,14 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # -----------------------------------------------------------------------------
+
+# pylint: disable=no-else-return
+
+import time
 from collections import defaultdict
 from importlib import import_module
-import packaging.version
-import time
 
+import packaging.version
 from knack.log import get_logger
 
 from azdev.operations.statistics import _create_invoker_and_load_cmds  # pylint: disable=protected-access
@@ -247,21 +250,24 @@ def _filter_breaking_changes(iterator, max_version=None):
         yield from iterator
         return
     try:
-        max_version = packaging.version.parse(max_version)
+        parsed_max_version = packaging.version.parse(max_version)
     except packaging.version.InvalidVersion:
-        logger.warning(f'Invalid target version: {max_version}; '
-                       f'Will present all upcoming breaking changes as alternative.')
+        logger.warning(f'Invalid target version: %s; '
+                       f'Will present all upcoming breaking changes as alternative.', max_version)
+        yield from iterator
+        return
     for item in iterator:
         if item.target_version:
             try:
                 target_version = packaging.version.parse(item.target_version)
-                if target_version <= max_version:
+                if target_version <= parsed_max_version:
                     yield item
             except packaging.version.InvalidVersion:
-                logger.warning(f'Invalid version from `{item.command}`: {item.target_version}')
+                logger.warning(f'Invalid version from `%s`: %s', item.command, item.target_version)
 
 
 def _group_breaking_change_items(iterator, group_by_version=False):
+    # pylint: disable=unnecessary-lambda-assignment
     if group_by_version:
         version_value = lambda: []
         command_value = lambda: defaultdict(version_value)
@@ -305,3 +311,4 @@ def collect_upcoming_breaking_changes(modules=None, target_version='NextWindow',
                           trim_blocks=True)
         template = env.get_template('markdown_template.jinja2')
         output(template.render({'module_bc': breaking_changes}))
+    return None
