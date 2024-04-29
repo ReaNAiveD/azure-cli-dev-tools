@@ -240,6 +240,7 @@ def _handle_upcoming_breaking_changes(selected_mod_names):
 def _filter_breaking_changes(iterator, max_version=None):
     if not max_version:
         yield from iterator
+        return
     try:
         max_version = packaging.version.parse(max_version)
     except packaging.version.InvalidVersion:
