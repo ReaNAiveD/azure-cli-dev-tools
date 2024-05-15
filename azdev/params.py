@@ -214,6 +214,10 @@ def load_arguments(self, _):
         c.argument('target_version', default='NextWindow',
                    help='Only the breaking changes scheduled prior to the specified version will be displayed. '
                         'The value could be `NextWindow`, `None` or a specified version like `3.0.0`')
+        c.argument('source', choices=['all', 'deprecate', 'custom'], default='all',
+                   help='The source of pre-announced breaking changes. `deprecate` represents the breaking changes '
+                        'marked through `deprecation_info`; `custom` represents the breaking changes announced in '
+                        '`breaking_change.py` file.')
         c.argument('group_by_version', action='store_true',
                    help='If specified, breaking changes would be grouped by their target version as well.')
         c.argument('output_format', choices=['structure', 'markdown'], default='structure',

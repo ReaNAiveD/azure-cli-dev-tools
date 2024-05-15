@@ -148,19 +148,20 @@ def _handle_options_deprecation(module, command, options):
                                  version)
 
 
-def _handle_command_breaking_changes(module, command, command_info):
-    if hasattr(command_info, "deprecate_info") and command_info.deprecate_info:
-        yield from _handle_command_deprecation(module, command, command_info.deprecate_info)
+def _handle_command_breaking_changes(module, command, command_info, source):
+    if source in ['all', 'deprecate']:
+        if hasattr(command_info, "deprecate_info") and command_info.deprecate_info:
+            yield from _handle_command_deprecation(module, command, command_info.deprecate_info)
 
-    for argument_name, argument in command_info.arguments.items():
-        arg_settings = argument.type.settings
-        depr = arg_settings.get('deprecate_info')
-        if depr:
-            bc_target = _calc_target_of_arg_deprecation(argument_name, arg_settings)
-            yield from _handle_arg_deprecation(module, command, bc_target, depr)
-        yield from _handle_options_deprecation(module, command, arg_settings.get('options', []))
-
-    yield from _handle_custom_breaking_changes(module, command)
+        for argument_name, argument in command_info.arguments.items():
+            arg_settings = argument.type.settings
+            depr = arg_settings.get('deprecate_info')
+            if depr:
+                bc_target = _calc_target_of_arg_deprecation(argument_name, arg_settings)
+                yield from _handle_arg_deprecation(module, command, bc_target, depr)
+            yield from _handle_options_deprecation(module, command, arg_settings.get('options', []))
+    if source in ['all', 'custom']:
+        yield from _handle_custom_breaking_changes(module, command)
 
 
 def _handle_command_group_deprecation(module, command, deprecate_info):
@@ -170,27 +171,38 @@ def _handle_command_group_deprecation(module, command, deprecate_info):
     yield BreakingChangeItem(module, command, f'This command group is deprecated{redirect}.{expiration}', version)
 
 
-def _handle_command_group_breaking_changes(module, command_group_name, command_group_info):
-    if hasattr(command_group_info, 'group_kwargs') and command_group_info.group_kwargs.get('deprecate_info'):
-        yield from _handle_command_group_deprecation(module, command_group_name,
-                                                     command_group_info.group_kwargs.get('deprecate_info'))
+def _handle_command_group_breaking_changes(module, command_group_name, command_group_info, source):
+    if source in ['all', 'deprecate']:
+        if hasattr(command_group_info, 'group_kwargs') and command_group_info.group_kwargs.get('deprecate_info'):
+            yield from _handle_command_group_deprecation(module, command_group_name,
+                                                         command_group_info.group_kwargs.get('deprecate_info'))
 
-    yield from _handle_custom_breaking_changes(module, command_group_name)
+    if source in ['all', 'custom']:
+        yield from _handle_custom_breaking_changes(module, command_group_name)
 
 
-def _get_module_name(loader):
-    module_source = next(iter(loader.command_table.values())).command_source
-    if isinstance(module_source, str):
-        return module_source
-    else:
-        return module_source.extension_name
+def _get_mod_ext_name(loader):
+    # There could be different name with module name in extension.
+    # For example, module name of `application-insights` is azext_applicationinsights
+    try:
+        module_source = next(iter(loader.command_table.values())).command_source
+        if isinstance(module_source, str):
+            return module_source
+        else:
+            return module_source.extension_name
+    except StopIteration:
+        logger.warning('There is no command in Loader(%s)', loader)
+    mod_path = loader.__class__.__module__
+    mod_name = mod_path.rsplit('.', maxsplit=1)[-1]
+    mod_name = mod_name.replace('azext_', '', 1)
+    return mod_name
 
 
 def _iter_and_prepare_module_loader(command_loader, selected_mod_names):
     for loader in command_loader.loaders:
         module_path = loader.__class__.__module__
-        module_name = _get_module_name(loader)
-        if module_name not in selected_mod_names:
+        module_name = module_path.rsplit('.', maxsplit=1)[-1]
+        if module_name and module_name not in selected_mod_names:
             continue
 
         _breaking_change_module = f'{module_path}._breaking_change'
@@ -203,46 +215,47 @@ def _iter_and_prepare_module_loader(command_loader, selected_mod_names):
         yield module_name, loader
 
 
-def _handle_module(module, loader, main_loader):
+def _handle_module(module, loader, main_loader, source):
     start = time.time()
 
     for command, command_info in loader.command_table.items():
         main_loader.load_arguments(command)
 
-        yield from _handle_command_breaking_changes(module, command, command_info)
+        yield from _handle_command_breaking_changes(module, command, command_info, source)
 
     for command_group_name, command_group in loader.command_group_table.items():
-        yield from _handle_command_group_breaking_changes(module, command_group_name, command_group)
+        yield from _handle_command_group_breaking_changes(module, command_group_name, command_group, source)
 
     stop = time.time()
     logger.info('Module %s finished in %i sec', module, stop - start)
     display('Module {} finished loaded in {} sec'.format(module, stop - start))
 
 
-def _handle_core():
+def _handle_core(source):
     start = time.time()
-    core_module = 'azure.cli.core'
-    _breaking_change_module = f'{core_module}._breaking_change'
-    try:
-        import_module(_breaking_change_module)
-    except ImportError:
-        pass
+    if source in ['all', 'custom']:
+        core_module = 'azure.cli.core'
+        _breaking_change_module = f'{core_module}._breaking_change'
+        try:
+            import_module(_breaking_change_module)
+        except ImportError:
+            pass
 
-    yield from _handle_custom_breaking_changes('core', 'core')
+        yield from _handle_custom_breaking_changes('core', 'core')
 
     stop = time.time()
     logger.info('Core finished in %i sec', stop - start)
     display('Core finished loaded in {} sec'.format(stop - start))
 
 
-def _handle_upcoming_breaking_changes(selected_mod_names):
+def _handle_upcoming_breaking_changes(selected_mod_names, source):
     command_loader = _load_commands()
 
     if 'core' in selected_mod_names or 'azure-cli-core' in selected_mod_names:
-        yield from _handle_core()
+        yield from _handle_core(source)
 
     for module, loader in _iter_and_prepare_module_loader(command_loader, selected_mod_names):
-        yield from _handle_module(module, loader, command_loader)
+        yield from _handle_module(module, loader, command_loader, source)
 
 
 def _filter_breaking_changes(iterator, max_version=None):
@@ -286,7 +299,7 @@ def _group_breaking_change_items(iterator, group_by_version=False):
     return upcoming_breaking_changes
 
 
-def collect_upcoming_breaking_changes(modules=None, target_version='NextWindow', group_by_version=None,
+def collect_upcoming_breaking_changes(modules=None, target_version='NextWindow', source=None, group_by_version=None,
                                       output_format='structure'):
     if target_version == 'NextWindow':
         from azure.cli.core.breaking_change import NEXT_BREAKING_CHANGE_RELEASE
@@ -302,7 +315,7 @@ def collect_upcoming_breaking_changes(modules=None, target_version='NextWindow',
         display('Modules selected: {}\n'.format(', '.join(selected_mod_names)))
 
     heading('Collecting Breaking Change Pre-announcement')
-    breaking_changes = _handle_upcoming_breaking_changes(selected_mod_names)
+    breaking_changes = _handle_upcoming_breaking_changes(selected_mod_names, source)
     breaking_changes = _filter_breaking_changes(breaking_changes, target_version)
     breaking_changes = _group_breaking_change_items(breaking_changes, group_by_version)
     if output_format == 'structure':
