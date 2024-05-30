@@ -14,7 +14,7 @@ import packaging.version
 from knack.log import get_logger
 
 from azdev.operations.statistics import _create_invoker_and_load_cmds  # pylint: disable=protected-access
-from azdev.utilities import require_azure_cli, get_path_table, display, heading, output
+from azdev.utilities import require_azure_cli, get_path_table, display, heading, output, calc_selected_mod_names
 
 logger = get_logger(__name__)
 
@@ -25,30 +25,6 @@ class BreakingChangeItem:
         self.command = command
         self.detail = detail
         self.target_version = target_version
-
-
-def _calc_selected_mod_names(modules=None):
-    # allow user to run only on CLI or extensions
-    cli_only = modules == ['CLI']
-    ext_only = modules == ['EXT']
-    if cli_only or ext_only:
-        modules = None
-
-    selected_modules = get_path_table(include_only=modules)
-
-    if cli_only:
-        selected_modules['ext'] = {}
-    if ext_only:
-        selected_modules['core'] = {}
-        selected_modules['mod'] = {}
-
-    if not any(selected_modules.values()):
-        logger.warning('No commands selected to check.')
-
-    selected_mod_names = list(selected_modules['mod'].keys())
-    selected_mod_names += list(selected_modules['ext'].keys())
-    selected_mod_names += list(selected_modules['core'].keys())
-    return selected_mod_names
 
 
 def _load_commands():
@@ -309,7 +285,7 @@ def collect_upcoming_breaking_changes(modules=None, target_version='NextWindow',
 
     require_azure_cli()
 
-    selected_mod_names = _calc_selected_mod_names(modules)
+    selected_mod_names = calc_selected_mod_names(modules)
 
     if selected_mod_names:
         display('Modules selected: {}\n'.format(', '.join(selected_mod_names)))
