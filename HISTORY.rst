@@ -2,9 +2,13 @@
 
 Release History
 ===============
-0.1.69
+0.1.70
 ++++++
 * `azdev breaking-change collect`: New command to collect upcoming breaking changes from codebase.
+
+0.1.69
+++++++
+* `azdev command-change tree-export`: Add command help message.
 
 0.1.68
 ++++++
