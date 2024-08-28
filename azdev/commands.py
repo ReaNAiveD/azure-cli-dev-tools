@@ -9,6 +9,7 @@ from knack.commands import CommandGroup
 from .transformers import performance_benchmark_data_transformer
 
 
+# pylint: disable=too-many-statements
 def load_command_table(self, _):
 
     def operation_group(name):
@@ -26,6 +27,10 @@ def load_command_table(self, _):
 
     with CommandGroup(self, '', operation_group('linter')) as g:
         g.command('linter', 'run_linter')
+
+    with CommandGroup(self, '', operation_group('secret')) as g:
+        g.command('scan', 'scan_secrets')
+        g.command('mask', 'mask_secrets')
 
     with CommandGroup(self, 'statistics', operation_group('statistics')) as g:
         g.command('list-command-table', 'list_command_table')
@@ -67,6 +72,7 @@ def load_command_table(self, _):
         g.command('publish', 'publish_extensions')
         g.command('update-index', 'update_extension_index')
         g.command('cal-next-version', 'cal_next_version')
+        g.command('show', 'show_extension')
 
     with CommandGroup(self, 'extension repo', operation_group('extensions')) as g:
         g.command('add', 'add_extension_repo')

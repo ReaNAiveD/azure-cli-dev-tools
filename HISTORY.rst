@@ -2,9 +2,31 @@
 
 Release History
 ===============
-0.1.70
+0.1.75
 ++++++
 * `azdev breaking-change collect`: New command to collect upcoming breaking changes from codebase.
+
+0.1.74
+++++++
+* `azdev scan/mask`: New commands for scanning and masking secrets for files or string
+
+0.1.73
+++++++
+* `azdev command-change meta-export`: Add `has_completer` to denote whether completer is configed in arg
+* `azdev command-change meta-export`: Extracting arg help and example for loaded HelpFiles
+
+0.1.72
+++++++
+* Bump `pylint` to 3
+
+0.1.71
+++++++
+* `azdev extension show`: Show detailed extension info that installed in your development environment.
+* `azdev extension cal-next-version`: Fix last stable version parser from index.json.
+
+0.1.70
+++++++
+* Fix cmdcov issue(#455): remove tested_command.txt reference.
 
 0.1.69
 ++++++

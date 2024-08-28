@@ -72,7 +72,7 @@ setup(
         'gitpython',
         'jinja2',
         'knack',
-        'pylint>=2.12,<3',
+        'pylint<4',
         'pytest-xdist',  # depends on pytest-forked
         'pytest-forked',
         'pytest>=5.0.0',
@@ -85,7 +85,8 @@ setup(
         'azure-cli-diff-tool~=0.0.6',
         'packaging',
         'tqdm',
-        'wheel==0.30.0'
+        'wheel==0.30.0',
+        'microsoft-security-utilities-secret-masker'
     ],
     package_data={
         'azdev.config': ['*.*', 'cli_pylintrc', 'ext_pylintrc'],
