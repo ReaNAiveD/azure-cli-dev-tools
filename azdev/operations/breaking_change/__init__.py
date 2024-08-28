@@ -125,7 +125,7 @@ def _handle_options_deprecation(module, command, options):
 
 
 def _handle_command_breaking_changes(module, command, command_info, source):
-    if source in ['all', 'deprecate']:
+    if source == "deprecate_info":
         if hasattr(command_info, "deprecate_info") and command_info.deprecate_info:
             yield from _handle_command_deprecation(module, command, command_info.deprecate_info)
 
@@ -136,7 +136,7 @@ def _handle_command_breaking_changes(module, command, command_info, source):
                 bc_target = _calc_target_of_arg_deprecation(argument_name, arg_settings)
                 yield from _handle_arg_deprecation(module, command, bc_target, depr)
             yield from _handle_options_deprecation(module, command, arg_settings.get('options', []))
-    if source in ['all', 'custom']:
+    if source == "pre_announce":
         yield from _handle_custom_breaking_changes(module, command)
 
 
@@ -148,12 +148,12 @@ def _handle_command_group_deprecation(module, command, deprecate_info):
 
 
 def _handle_command_group_breaking_changes(module, command_group_name, command_group_info, source):
-    if source in ['all', 'deprecate']:
+    if source == "deprecate_info":
         if hasattr(command_group_info, 'group_kwargs') and command_group_info.group_kwargs.get('deprecate_info'):
             yield from _handle_command_group_deprecation(module, command_group_name,
                                                          command_group_info.group_kwargs.get('deprecate_info'))
 
-    if source in ['all', 'custom']:
+    if source == "pre_announce":
         yield from _handle_custom_breaking_changes(module, command_group_name)
 
 
@@ -209,7 +209,7 @@ def _handle_module(module, loader, main_loader, source):
 
 def _handle_core(source):
     start = time.time()
-    if source in ['all', 'custom']:
+    if source == "pre_announce":
         core_module = 'azure.cli.core'
         _breaking_change_module = f'{core_module}._breaking_change'
         try:
