@@ -2,9 +2,21 @@
 
 Release History
 ===============
+0.1.78
+++++++
+* `azdev generate-breaking-change-report`: New command to collect upcoming breaking changes from codebase.
+
+0.1.77
+++++++
+* `azdev extension cal-next-version`: Fix pre_num when tagged preview version with `major`, `minor`, `patch`.
+
+0.1.76
+++++++
+* `azdev extension cal-next-version`: Fix preview to stable version case.
+
 0.1.75
 ++++++
-* `azdev breaking-change collect`: New command to collect upcoming breaking changes from codebase.
+* `azdev scan/mask`: Add `--include-pattern` and `--exclude-pattern` to support filtering files within directory
 
 0.1.74
 ++++++
