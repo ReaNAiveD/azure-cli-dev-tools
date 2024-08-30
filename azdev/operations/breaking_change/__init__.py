@@ -3,7 +3,7 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # -----------------------------------------------------------------------------
-
+import re
 # pylint: disable=no-else-return
 
 import time
@@ -11,10 +11,12 @@ from collections import defaultdict
 from importlib import import_module
 
 import packaging.version
+from knack.deprecation import Deprecated
 from knack.log import get_logger
 
 from azdev.operations.statistics import _create_invoker_and_load_cmds  # pylint: disable=protected-access
 from azdev.utilities import require_azure_cli, get_path_table, display, heading, output, calc_selected_mod_names
+from azure.cli.core.breaking_change import MergedStatusTag, UpcomingBreakingChangeTag, TargetVersion
 
 logger = get_logger(__name__)
 
@@ -34,7 +36,11 @@ def _load_commands():
     az_cli = get_default_cli()
 
     # load commands, args, and help
-    _create_invoker_and_load_cmds(az_cli)
+    # The arguments must be loaded before the `EVENT_INVOKER_POST_CMD_TBL_CREATE` event.
+    # This is because we generate the `deprecate_info` and `upcoming_breaking_change` tags from pre-announcement data
+    # during the event.
+    # If the arguments are not loaded beforehand, this information will not be included.
+    _create_invoker_and_load_cmds(az_cli, load_arguments=True)
 
     stop = time.time()
     logger.info('Commands loaded in %i sec', stop - start)
@@ -75,11 +81,29 @@ def _handle_custom_breaking_change(module, command, breaking_change):
             yield from _handle_custom_breaking_change(module, command, bc)
 
 
+def _handle_status_tag(module, command, status_tag):
+    if isinstance(status_tag, MergedStatusTag):
+        for tag in status_tag.tags:
+            yield from _handle_status_tag(module, command, tag)
+    else:
+        detail = status_tag._get_message(status_tag)
+        version = None
+        if isinstance(status_tag, Deprecated):
+            version = status_tag.expiration
+        elif isinstance(status_tag, UpcomingBreakingChangeTag):
+            if isinstance(status_tag.target_version, TargetVersion):
+                version = status_tag.target_version.version()
+            elif isinstance(status_tag.target_version, str):
+                version = status_tag.target_version
+        if version is None:
+            version_match = re.search(r'\d+\.\d+\.\d+', detail)
+            if version_match:
+                version = version_match.group(0)
+        yield BreakingChangeItem(module, command, detail, version)
+
+
 def _handle_command_deprecation(module, command, deprecate_info):
-    redirect = f' and replaced by `{deprecate_info.redirect}`' if deprecate_info.redirect else ''
-    version = deprecate_info.expiration if hasattr(deprecate_info, "expiration") else None
-    expiration = f' This command would be removed in {version}.' if version else ''
-    yield BreakingChangeItem(module, command, f'This command is deprecated{redirect}.{expiration}', version)
+    yield from _handle_status_tag(module, command, deprecate_info)
 
 
 def _calc_target_of_arg_deprecation(arg_name, arg_settings):
@@ -100,11 +124,8 @@ def _calc_target_of_arg_deprecation(arg_name, arg_settings):
 
 
 def _handle_arg_deprecation(module, command, target, deprecation_info):
-    redirect = f' and replaced by `{deprecation_info.redirect}`' if deprecation_info.redirect else ''
-    version = deprecation_info.expiration if hasattr(deprecation_info, "expiration") else None
-    expiration = f' This parameter would be removed in {version}.' if version else ''
-    yield BreakingChangeItem(module, command, f'This parameter `{target}` is deprecated{redirect}.{expiration}',
-                             version)
+    deprecation_info.target = target
+    yield from _handle_status_tag(module, command, deprecation_info)
 
 
 def _handle_options_deprecation(module, command, options):
@@ -117,11 +138,8 @@ def _handle_options_deprecation(module, command, options):
     for _, depr_list in deprecate_option_map.items():
         target = '/'.join([depr.target for depr in depr_list])
         depr = depr_list[0]
-        redirect = f' and replaced by `{depr.redirect}`' if depr.redirect else ''
-        version = depr.expiration if hasattr(depr, "expiration") else None
-        expiration = f' This command would be removed in {version}.' if version else ''
-        yield BreakingChangeItem(module, command, f'This option `{target}` is deprecated{redirect}.{expiration}',
-                                 version)
+        depr.target = target
+        yield from _handle_status_tag(module, command, depr)
 
 
 def _handle_command_breaking_changes(module, command, command_info, source):
@@ -135,16 +153,13 @@ def _handle_command_breaking_changes(module, command, command_info, source):
             if depr:
                 bc_target = _calc_target_of_arg_deprecation(argument_name, arg_settings)
                 yield from _handle_arg_deprecation(module, command, bc_target, depr)
-            yield from _handle_options_deprecation(module, command, arg_settings.get('options', []))
+            yield from _handle_options_deprecation(module, command, arg_settings.get('options_list', []))
     if source == "pre_announce":
         yield from _handle_custom_breaking_changes(module, command)
 
 
 def _handle_command_group_deprecation(module, command, deprecate_info):
-    redirect = f' and replaced by `{deprecate_info.redirect}`' if deprecate_info.redirect else ''
-    version = deprecate_info.expiration if hasattr(deprecate_info, "expiration") else None
-    expiration = f' This command would be removed in {version}.' if version else ''
-    yield BreakingChangeItem(module, command, f'This command group is deprecated{redirect}.{expiration}', version)
+    yield from _handle_status_tag(module, command, deprecate_info)
 
 
 def _handle_command_group_breaking_changes(module, command_group_name, command_group_info, source):
@@ -195,7 +210,7 @@ def _handle_module(module, loader, main_loader, source):
     start = time.time()
 
     for command, command_info in loader.command_table.items():
-        main_loader.load_arguments(command)
+        # main_loader.load_arguments(command)
 
         yield from _handle_command_breaking_changes(module, command, command_info, source)
 
