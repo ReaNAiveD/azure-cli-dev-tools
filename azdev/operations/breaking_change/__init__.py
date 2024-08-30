@@ -4,8 +4,6 @@
 # license information.
 # -----------------------------------------------------------------------------
 import re
-# pylint: disable=no-else-return
-
 import time
 from collections import defaultdict
 from importlib import import_module
@@ -15,8 +13,10 @@ from knack.deprecation import Deprecated
 from knack.log import get_logger
 
 from azdev.operations.statistics import _create_invoker_and_load_cmds  # pylint: disable=protected-access
-from azdev.utilities import require_azure_cli, get_path_table, display, heading, output, calc_selected_mod_names
+from azdev.utilities import require_azure_cli, display, heading, output, calc_selected_mod_names
 from azure.cli.core.breaking_change import MergedStatusTag, UpcomingBreakingChangeTag, TargetVersion
+
+# pylint: disable=no-else-return
 
 logger = get_logger(__name__)
 
@@ -86,7 +86,7 @@ def _handle_status_tag(module, command, status_tag):
         for tag in status_tag.tags:
             yield from _handle_status_tag(module, command, tag)
     else:
-        detail = status_tag._get_message(status_tag)
+        detail = status_tag._get_message(status_tag)    # pylint: disable=protected-access
         version = None
         if isinstance(status_tag, Deprecated):
             version = status_tag.expiration
@@ -107,7 +107,6 @@ def _handle_command_deprecation(module, command, deprecate_info):
 
 
 def _calc_target_of_arg_deprecation(arg_name, arg_settings):
-    from knack.deprecation import Deprecated
     option_str_list = []
     depr = arg_settings.get('deprecate_info')
     for option in arg_settings.get('option_list', []):
@@ -129,7 +128,6 @@ def _handle_arg_deprecation(module, command, target, deprecation_info):
 
 
 def _handle_options_deprecation(module, command, options):
-    from knack.deprecation import Deprecated
     deprecate_option_map = defaultdict(lambda: [])
     for option in options:
         if isinstance(option, Deprecated):
@@ -206,12 +204,10 @@ def _iter_and_prepare_module_loader(command_loader, selected_mod_names):
         yield module_name, loader
 
 
-def _handle_module(module, loader, main_loader, source):
+def _handle_module(module, loader, source):
     start = time.time()
 
     for command, command_info in loader.command_table.items():
-        # main_loader.load_arguments(command)
-
         yield from _handle_command_breaking_changes(module, command, command_info, source)
 
     for command_group_name, command_group in loader.command_group_table.items():
@@ -246,7 +242,7 @@ def _handle_upcoming_breaking_changes(selected_mod_names, source):
         yield from _handle_core(source)
 
     for module, loader in _iter_and_prepare_module_loader(command_loader, selected_mod_names):
-        yield from _handle_module(module, loader, command_loader, source)
+        yield from _handle_module(module, loader, source)
 
 
 def _filter_breaking_changes(iterator, max_version=None):
