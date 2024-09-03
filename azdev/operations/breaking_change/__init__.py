@@ -9,12 +9,12 @@ from collections import defaultdict
 from importlib import import_module
 
 import packaging.version
+from azure.cli.core.breaking_change import MergedStatusTag, UpcomingBreakingChangeTag, TargetVersion
 from knack.deprecation import Deprecated
 from knack.log import get_logger
 
 from azdev.operations.statistics import _create_invoker_and_load_cmds  # pylint: disable=protected-access
 from azdev.utilities import require_azure_cli, display, heading, output, calc_selected_mod_names
-from azure.cli.core.breaking_change import MergedStatusTag, UpcomingBreakingChangeTag, TargetVersion
 
 # pylint: disable=no-else-return
 
