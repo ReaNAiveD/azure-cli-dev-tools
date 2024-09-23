@@ -2,9 +2,23 @@
 
 Release History
 ===============
-0.1.78
+0.1.81
 ++++++
 * `azdev generate-breaking-change-report`: New command to collect upcoming breaking changes from codebase.
+
+0.1.80
+++++++
+* `azdev cmdcov`: Support both extension short name and long name
+* `azdev cmdcov`: Fix sorting issues
+* `azdev test`: Fix executable inconsistence in `subprocess` of windows platform
+
+0.1.79
+++++++
+* Fix profile options
+
+0.1.78
+++++++
+* Mitigate shell injection risk from user input.
 
 0.1.77
 ++++++
