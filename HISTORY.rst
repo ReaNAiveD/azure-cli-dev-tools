@@ -2,6 +2,10 @@
 
 Release History
 ===============
+0.1.87
+++++++
+* `azdev generate-breaking-change-report`: Update report report template.
+
 0.1.86
 ++++++
 * `azdev linter`: Add close html tags into whitelist of `disallowed_html_tags`
