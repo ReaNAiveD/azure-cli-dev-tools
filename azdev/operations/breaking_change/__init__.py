@@ -105,8 +105,6 @@ def _handle_status_tag(module, command, status_tag):
                 version = status_tag.target_version.version()
             elif isinstance(status_tag.target_version, str):
                 version = status_tag.target_version
-        if status_tag.object_type == 'command group':
-            pass
         if version is None:
             version_match = re.search(r'\d+\.\d+\.\d+', detail)
             if version_match:

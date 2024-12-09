@@ -14,8 +14,8 @@ The breaking changes listed in this article are planned for the next major relea
 [Link to {{ multi_version_bcs.group_ref|join(' ') }} reference group](/cli/azure/{{ multi_version_bcs.group_ref|join('/') }})
 
 {% endif -%}
-{% if multi_version_bcs.items is mapping -%}
-{% for version, bcs in multi_version_bcs.items | dictsort -%}
+{% if multi_version_bcs['items'] is mapping -%}
+{% for version, bcs in multi_version_bcs['items'] | dictsort -%}
 ###{%- if not (module == 'core' and command == 'core') -%}#{%- endif %} Deprecated in {{ version }}
 
 {% for bc in bcs -%}
