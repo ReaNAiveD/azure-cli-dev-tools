@@ -25,6 +25,15 @@ class BreakingChangeItem:
         self.command = command
         self.detail = detail
         self.target_version = target_version
+        self.group_ref = None
+
+    def calc_ref(self, loader):
+        if not loader:
+            return
+        if self.command in loader.command_group_table:
+            self.group_ref = self.command.split()
+        else:
+            self.group_ref = self.command.split()[:-1]
 
 
 def _load_commands():
@@ -96,6 +105,8 @@ def _handle_status_tag(module, command, status_tag):
                 version = status_tag.target_version.version()
             elif isinstance(status_tag.target_version, str):
                 version = status_tag.target_version
+        if status_tag.object_type == 'command group':
+            pass
         if version is None:
             version_match = re.search(r'\d+\.\d+\.\d+', detail)
             if version_match:
@@ -247,7 +258,9 @@ def _handle_upcoming_breaking_changes(selected_mod_names, source):
         yield from _handle_core(source)
 
     for module, loader in _iter_and_prepare_module_loader(command_loader, selected_mod_names):
-        yield from _handle_module(module, loader, source)
+        for bc_item in _handle_module(module, loader, source):
+            bc_item.calc_ref(loader)
+            yield bc_item
 
 
 def _filter_breaking_changes(iterator, max_version=None):
@@ -276,18 +289,19 @@ def _group_breaking_change_items(iterator, group_by_version=False):
     if group_by_version:
         upcoming_breaking_changes = defaultdict(    # module to command
             lambda: defaultdict(    # command to version
-                lambda: defaultdict(    # version to list of breaking changes
-                    lambda: [])))
+                lambda: {'group_ref': None, 'items': defaultdict(    # version to list of breaking changes
+                    lambda: [])}))
     else:
         upcoming_breaking_changes = defaultdict(    # module to command
             lambda: defaultdict(    # command to list of breaking changes
-                lambda: []))
+                lambda: {'group_ref': None, 'items': []}))
     for item in iterator:
         version = item.target_version if item.target_version else 'Unspecific'
+        upcoming_breaking_changes[item.module][item.command]['group_ref'] = item.group_ref
         if group_by_version:
-            upcoming_breaking_changes[item.module][item.command][version].append(item.detail)
+            upcoming_breaking_changes[item.module][item.command]['items'][version].append(item.detail)
         else:
-            upcoming_breaking_changes[item.module][item.command].append(item.detail)
+            upcoming_breaking_changes[item.module][item.command]['items'].append(item.detail)
     return upcoming_breaking_changes
 
 
