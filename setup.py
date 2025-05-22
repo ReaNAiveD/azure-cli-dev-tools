@@ -90,6 +90,9 @@ setup(
         'setuptools==70.0.0',
         'microsoft-security-utilities-secret-masker~=1.0.0b4'
     ],
+    extras_require={
+        'enhanced_extract': ['azure-ai-inference', 'azure-identity']
+    },
     package_data={
         'azdev.config': ['*.*', 'cli_pylintrc', 'ext_pylintrc'],
         'azdev.mod_templates': ['*.*'],

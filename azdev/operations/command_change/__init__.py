@@ -7,6 +7,7 @@
 # pylint: disable=no-else-return, too-many-nested-blocks, too-many-locals, too-many-branches
 
 import time
+import types
 
 from knack.log import get_logger
 import azure_cli_diff_tool
@@ -102,7 +103,8 @@ def export_command_meta(modules=None, git_source=None, git_target=None, git_repo
             "arguments": [],
             "az_arguments_schema": None,
             "supports_no_wait": command.supports_no_wait,
-            "is_preview": command.command_kwargs.get("is_preview", False)
+            "is_preview": command.command_kwargs.get("is_preview", False),
+            "validator": command.validator,
         }
 
         if hasattr(command, "deprecate_info"):
@@ -111,6 +113,10 @@ def export_command_meta(modules=None, git_source=None, git_target=None, git_repo
                     if command_info.get("deprecate_info", None) is None:
                         command_info["deprecate_info"] = {}
                     command_info["deprecate_info"][info_key] = getattr(command.deprecate_info, info_key)
+
+        if hasattr(command, "handler") and isinstance(command.handler, types.MethodType):
+            command_info["handler"] = command.handler
+            command_info["operation"] = command.command_kwargs["command_operation"]
 
         module_loader = command_loader.cmd_to_loader_map[command_name]
         for loader in module_loader:
@@ -134,8 +140,8 @@ def export_command_meta(modules=None, git_source=None, git_target=None, git_repo
                 pass
 
         commands_info.append(command_info)
-    commands_meta = get_commands_meta(command_loader.command_group_table, commands_info, with_help, with_example)
-    export_commands_meta(commands_meta, meta_output_path)
+    commands_meta = get_commands_meta(command_loader.command_group_table, commands_info, with_help, with_example, meta_output_path)
+    # export_commands_meta(commands_meta, meta_output_path)
     display(f"Total Commands: {len(commands_info)} from {', '.join(selected_mod_names)} have been generated.")
 
 

@@ -3,10 +3,14 @@
 # Licensed under the MIT License. See License.txt in the project root for
 # license information.
 # -----------------------------------------------------------------------------
-
+import os
 from enum import Enum
+from importlib import import_module
 
+import yaml
 from knack.log import get_logger
+
+from azure.cli.core.commands.command_operation import GenericUpdateCommandOperation
 from .util import get_command_tree
 
 logger = get_logger(__name__)
@@ -29,9 +33,9 @@ def process_aaz_argument(az_arguments_schema, argument_settings, para):
         if aaz_type._type_in_help and aaz_type._type_in_help.lower() != "undefined":  # pylint: disable=protected-access
             para["type"] = aaz_type._type_in_help  # pylint: disable=protected-access
         if has_value(aaz_type._default):  # pylint: disable=protected-access
-            para["aaz_default"] = aaz_type._default  # pylint: disable=protected-access
+            para["aaz_default"] = str(aaz_type._default)  # pylint: disable=protected-access
         if para["aaz_type"] in ["AAZArgEnum"] and aaz_type.get("enum", None) and aaz_type.enum.get("items", None):
-            para["aaz_choices"] = aaz_type.enum["items"]
+            para["aaz_choices"] = [str(item) for item in aaz_type.enum["items"]]
 
 
 def process_arg_options(argument_settings, para):
@@ -128,12 +132,28 @@ def get_command_examples(command_info, command_meta):
         command_meta["examples"] = example_items
 
 
-def gen_command_meta(command_info, with_help=False, with_example=False):
+def gen_command_meta(command_info, with_help=False, with_example=False, extractor=None, output_dir=None):
+    if output_dir:
+        path = os.path.join(output_dir, *command_info["name"].split()) + '.yml'
+        if os.path.exists(path):
+            with open(path, 'r', encoding='utf-8') as f:
+                return yaml.safe_load(f)
+
+    command_name = command_info["name"]
     stored_property_when_exist = ["confirmation", "supports_no_wait", "is_preview", "deprecate_info"]
     command_meta = {
-        "name": command_info["name"],
+        "name": command_name,
         "is_aaz": command_info["is_aaz"],
     }
+    if "handler" not in command_info and not command_info["is_aaz"]:
+        print(f"WARNING: {command_info['name']} is not an AAZ command but has no handler!")
+    if "operation" in command_info:
+        if isinstance(command_info["operation"], GenericUpdateCommandOperation):
+            command_meta["getter_op_path"] = command_info["operation"].getter_op_path
+            command_meta["setter_op_path"] = command_info["operation"].setter_op_path
+            command_meta["custom_function_op_path"] = command_info["operation"].custom_function_op_path
+        else:
+            command_meta["op_path"] = command_info["operation"].op_path
     for prop in stored_property_when_exist:
         if command_info.get(prop, None):
             command_meta[prop] = command_info[prop]
@@ -152,8 +172,9 @@ def gen_command_meta(command_info, with_help=False, with_example=False):
             if hasattr(action, "__name__") and action.__name__ == "IgnoreAction":
                 # ignore argument like: cmd
                 continue
+        arg_name = settings["dest"]
         para = {
-            "name": settings["dest"],
+            "name": arg_name,
         }
         process_arg_deprecation(settings, para)
         process_arg_options(settings, para)
@@ -162,7 +183,7 @@ def gen_command_meta(command_info, with_help=False, with_example=False):
         if settings.get("required", False):
             para["required"] = True
         if settings.get("choices", None):
-            para["choices"] = sorted(list(settings["choices"]))
+            para["choices"] = sorted([str(choice) for choice in settings["choices"]])
         if settings.get("id_part", None):
             para["id_part"] = settings["id_part"]
         if settings.get("nargs", None):
@@ -173,14 +194,41 @@ def gen_command_meta(command_info, with_help=False, with_example=False):
             if not isinstance(settings["default"], (float, int, str, list, bool)):
                 para["default"] = str(settings["default"])
             else:
-                para["default"] = settings["default"]
+                para["default"] = str(settings["default"]) if extractor else settings["default"]
         if with_help:
-            para["desc"] = settings.get("help", "")
+            para["desc"] = str(settings.get("help", ""))
         if command_info["is_aaz"] and command_info["az_arguments_schema"]:
             process_aaz_argument(command_info["az_arguments_schema"], settings, para)
+        if extractor and argument.validator:
+            para["validator"] = handle_arg_validator(argument.validator, arg_name, para, f"{command_name}#{arg_name}#validator", extractor=extractor)
         normalize_para_types(para)
         parameters.append(para)
     command_meta["parameters"] = parameters
+    if extractor and command_info["validator"]:
+        args = dict((para["name"], para) for para in parameters)
+        command_meta["validator"] = handle_validator(command_info["validator"], args, f'{command_name}#validator', extractor=extractor)
+    if extractor and "operation" in command_info:
+        if isinstance(command_info["operation"], GenericUpdateCommandOperation):
+            command_meta["getter_operation"] = (
+                    command_info["operation"].getter_op_path and
+                    handle_op(command_info["operation"].getter_op_path, parameters, f'{command_name}#getter_op', extractor=extractor))
+            command_meta["setter_operation"] = (
+                    command_info["operation"].setter_op_path and
+                    handle_op(command_info["operation"].setter_op_path, parameters, f'{command_name}#setter_op', extractor=extractor))
+            command_meta["custom_function_operation"] = (
+                    command_info["operation"].custom_function_op_path and
+                    handle_op(command_info["operation"].custom_function_op_path, parameters, f'{command_name}#custom_function_op', extractor=extractor))
+        else:
+            command_meta["operation"] = handle_op(command_info["operation"].op_path, parameters, f'{command_name}#op', extractor=extractor)
+    if output_dir:
+        group_dir = os.path.join(output_dir, *command_info["name"].split()[:-1])
+        os.makedirs(group_dir, exist_ok=True)
+        path = os.path.join(output_dir, *command_info["name"].split()) + '.yml'
+        with open(path, 'w', encoding='utf-8') as f:
+            yaml.safe_dump(command_meta, f, indent=2, allow_unicode=True)
+        # if extractor:
+        #     with open(os.path.join(output_dir, 'cache.yml'), 'w', encoding='utf-8') as f:
+        #         yaml.safe_dump(extractor.dump_cache(), f, allow_unicode=True, indent=2)
     return command_meta
 
 
@@ -197,7 +245,10 @@ def process_command_group_deprecation(command_group_obj, command_group_info):
             command_group_info["deprecate_info"][info_key] = getattr(group_kwargs["deprecate_info"], info_key)
 
 
-def get_commands_meta(command_group_table, commands_info, with_help, with_example):
+def get_commands_meta(command_group_table, commands_info, with_help, with_example, output_dir=None):
+    from .extractor import CallExtractor
+
+    extractor = CallExtractor(cache_path=os.path.join(output_dir, 'cache.yml'))
     commands_meta = {}
 
     for command_info in commands_info:  # pylint: disable=too-many-nested-blocks
@@ -237,7 +288,70 @@ def get_commands_meta(command_group_table, commands_info, with_help, with_exampl
                 if command_name in command_group_info["commands"]:
                     logger.warning("repeated command: %i", command_name)
                     break
-                command_meta = gen_command_meta(command_info, with_help, with_example)
+                command_meta = gen_command_meta(command_info, with_help, with_example, extractor, output_dir)
                 command_group_info["commands"][command_name] = command_meta
                 break
     return commands_meta
+
+
+def module_attr(module, name):
+    item = module
+    try:
+        for name in name.split("."):
+            item = getattr(item, name)
+    except AttributeError as e:
+        return None
+    except Exception as e:
+        return None
+    return item
+
+
+def handle_op(op_path, parameters, key, *, extractor):
+    module, name = op_path.split("#", maxsplit=1)
+    try:
+        module = import_module(module)
+    except ModuleNotFoundError as e:
+        return {
+            "module": str(module),
+            "name": name,
+        }
+    op = module_attr(module, name)
+    return op and extractor.extract_cmd_call(
+        op,
+        arg_types={
+            "cmd": {
+                "description": "Context Info about current command. The parameter includes related command definition and also a cli_ctx field which includes context info of Azure CLI app."
+            },
+            **dict((para['name'], para) for para in parameters)
+        },
+        key=key,
+    ).to_dict()
+
+
+def handle_validator(validator, args, key, *, extractor):
+    return extractor.extract_cmd_call(
+        validator,
+        arg_types={
+            "cmd": {
+                "description": "Context Info about current command. The parameter includes related command definition and also a cli_ctx field which includes context info of Azure CLI app."
+            },
+            "namespace": {
+                "description": "A Field of parsed input arguments of current command. Each field is corresponding to a command argument.",
+                "fields": args,
+            }
+        },
+        key=key,
+    ).to_dict()
+
+
+def handle_arg_validator(validator, arg_name, arg, key, *, extractor):
+    return extractor.extract_cmd_call(
+        validator,
+        arg_types={
+            "cmd": {
+                "description": "Context Info about current command. The parameter includes related command definition and also a cli_ctx field which includes context info of Azure CLI app."
+            },
+            arg_name: arg,
+        },
+        key=key,
+    ).to_dict()
